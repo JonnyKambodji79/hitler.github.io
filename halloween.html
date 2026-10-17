@@ -1,0 +1,836 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Halloween Maze</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+/* Layout: полноэкранный canvas, у каждого зрителя своя панель с личным туманом войны. Меню, лобби и финал поверх. */
+:root{
+  --bg:#07040b; --panel:#140c1c; --fg:#f3eaff; --muted:#a999c4; --accent:#ff8a1f; --line:#3a2a52; --bad:#ff6b6b; --ok:#7dffb0;
+  --font-display:'Pirata One','Georgia',serif; --font-body:'IBM Plex Sans',system-ui,sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;overflow:hidden}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body)}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block}
+.ov{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(7,4,11,.9);padding:16px;box-sizing:border-box;overflow:auto}
+.card{max-width:660px;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:24px;box-sizing:border-box}
+h1{font-family:var(--font-display);font-weight:400;font-size:clamp(40px,8vw,64px);margin:0 0 4px;color:var(--accent);letter-spacing:1px}
+h2{font-size:15px;margin:16px 0 4px;color:var(--fg)}
+p{margin:6px 0;color:var(--muted);line-height:1.45;font-size:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;align-items:center}
+button{font:inherit;color:var(--fg);background:#241634;border:1px solid var(--line);padding:10px 16px;border-radius:4px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.sel{background:var(--accent);color:#1a0d00;border-color:var(--accent);font-weight:600}
+button.go{background:var(--accent);color:#1a0d00;font-weight:600;border-color:var(--accent);padding:12px 28px}
+button:disabled{opacity:.45;cursor:default}
+input[type=text]{font:inherit;color:var(--fg);background:#0e0814;border:1px solid var(--line);padding:9px 12px;border-radius:4px;width:150px;text-transform:lowercase}
+label{font-size:14px;color:var(--fg);display:flex;gap:6px;align-items:center}
+table{border-collapse:collapse;font-size:12.5px;width:100%;display:block;overflow-x:auto}
+td,th{border-bottom:1px solid var(--line);padding:4px 8px;text-align:left;color:var(--fg);white-space:nowrap}
+th{color:var(--muted);font-weight:600}
+.candy{display:grid;gap:3px;margin:8px 0;font-size:13px;color:var(--fg)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;border:1px solid #fff6}
+.tabs{display:flex;gap:8px;margin:14px 0 6px}
+.peer{display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+.peer b{min-width:110px}
+.note{font-size:13px;color:var(--bad)}
+.good{color:var(--ok)}
+#end h1{color:var(--fg)}
+</style>
+
+<canvas id="c"></canvas>
+
+<div class="ov" id="menu"><div class="card">
+  <h1>HALLOWEEN</h1>
+  <p>Вы попали в огромный дом. Каждый видит только свой круг света. Найдите друзей, соберите 3 ключа, освободите пленников и уходите через выход вместе. Монстром может управлять игрок.</p>
+  <div class="tabs">
+    <button id="tabLocal" class="sel">На одном экране</button>
+    <button id="tabOnline">Онлайн</button>
+  </div>
+
+  <div id="paneLocal">
+    <p>Сколько людей играет на этом экране:</p>
+    <div class="row" id="pl">
+      <button data-n="1">1</button><button data-n="2">2</button><button data-n="3" class="sel">3</button><button data-n="4">4</button>
+    </div>
+    <label><input type="checkbox" id="hm"> Монстром управляет игрок (берёт следующий по таблице набор клавиш после героев)</label>
+    <table>
+      <tr><th>Игрок</th><th>Ходьба</th><th>Бег / рывок</th><th>Съесть</th><th>Действие (держать)</th></tr>
+      <tr><td>1 Оранж</td><td>WASD</td><td>Shift слева</td><td>Q</td><td>E</td></tr>
+      <tr><td>2 Синий</td><td>стрелки</td><td>Shift справа</td><td>,</td><td>.</td></tr>
+      <tr><td>3 Зелёный</td><td>IJKL</td><td>U</td><td>O</td><td>P</td></tr>
+      <tr><td>4 Розовый</td><td>Num 8456</td><td>Num 0</td><td>Num 7</td><td>Num 9</td></tr>
+    </table>
+    <p>Один игрок без монстра-игрока: WASD или стрелки, бег Shift или пробел, съесть Q, действие E.</p>
+    <div class="row"><button class="go" id="start">Войти в дом</button></div>
+  </div>
+
+  <div id="paneOnline" hidden>
+    <p>Все друзья открывают эту страницу и вводят один код комнаты. Один из вас нажимает «Старт» и считает игру, остальные получают картинку и отправляют управление. Нужен вход в аккаунт и доступ к странице не ниже «Участник».</p>
+    <div class="row"><input type="text" id="code" maxlength="12" placeholder="код комнаты" value=""><button id="join">Войти в комнату</button></div>
+    <div id="lobby" hidden>
+      <h2>Комната <span id="lobbyCode"></span></h2>
+      <div id="peers"></div>
+      <div class="row">
+        <button id="roleHero" class="sel">Я игрок</button><button id="roleMon">Я монстр</button>
+        <button class="go" id="netStart">Старт</button>
+      </div>
+      <p>Игроков до 4, монстр один. Если никто не взял монстра, им управляет дом. Вся комната слышит старт одновременно.</p>
+    </div>
+    <p class="note" id="netNote" hidden></p>
+    <p>Управление в онлайне: WASD или стрелки, бег Shift или пробел (у монстра это рывок), съесть Q, действие E.</p>
+  </div>
+
+  <h2>Конфеты</h2>
+  <div class="candy">
+    <div><span class="dot" style="background:#ff8a1f"></span>Тыква: ночное зрение 25 с, но монстр замечает вас издалека</div>
+    <div><span class="dot" style="background:#3a3a45"></span>Лакрица: полная тишина 15 с, но вы медленнее</div>
+    <div><span class="dot" style="background:#ffe14d"></span>Молния: рывок и бесконечный бег 6 с, потом 4 с усталости</div>
+    <div><span class="dot" style="background:#4de0b0"></span>Мята: стрелки к друзьям 25 с, но обзор уже</div>
+    <div><span class="dot" style="background:#c27bff"></span>Эхо: громкий звук впереди, уводит монстра</div>
+  </div>
+  <h2>За монстра</h2>
+  <p>Вы видите свой круг и рябь от шагов и бега: чем громче, тем крупнее волна. Касание уносит героя в клетку. Рывок на Shift: 1,2 с ускорения, потом 7 с отдыха.</p>
+</div></div>
+
+<div class="ov" id="end" hidden><div class="card">
+  <h1 id="endT"></h1><p id="endP"></p>
+  <div class="row"><button class="go" id="again">В меню</button></div>
+</div></div>
+
+<script>
+'use strict';
+/* ================= константы ================= */
+const T=32, CW=14, GW=7, GH=7, W=GW*CW+1, H=GH*CW+1;
+const COLORS=['#ff8a1f','#4dc3ff','#7dff6a','#ff5fd0'];
+const NAMES=['Оранж','Синий','Зелёный','Розовый'];
+const CANDY={
+  pumpkin:{name:'Тыква',color:'#ff8a1f'},
+  licorice:{name:'Лакрица',color:'#3a3a45'},
+  rush:{name:'Молния',color:'#ffe14d'},
+  mint:{name:'Мята',color:'#4de0b0'},
+  echo:{name:'Эхо',color:'#c27bff'}
+};
+const TY=['pumpkin','licorice','rush','mint','echo'];
+const PS=['free','carried','jailed'];
+const MS=['wait','patrol','look','investigate','search','chase','carry','hum'];
+const CTRL=[
+ {id:0,up:['KeyW'],left:['KeyA'],down:['KeyS'],right:['KeyD'],sprint:['ShiftLeft'],eat:['KeyQ'],act:['KeyE']},
+ {id:1,up:['ArrowUp'],left:['ArrowLeft'],down:['ArrowDown'],right:['ArrowRight'],sprint:['ShiftRight'],eat:['Comma'],act:['Period']},
+ {id:2,up:['KeyI'],left:['KeyJ'],down:['KeyK'],right:['KeyL'],sprint:['KeyU'],eat:['KeyO'],act:['KeyP']},
+ {id:3,up:['Numpad8'],left:['Numpad4'],down:['Numpad5'],right:['Numpad6'],sprint:['Numpad0'],eat:['Numpad7'],act:['Numpad9']},
+ {id:4,up:['KeyW','ArrowUp'],left:['KeyA','ArrowLeft'],down:['KeyS','ArrowDown'],right:['KeyD','ArrowRight'],sprint:['ShiftLeft','ShiftRight','Space'],eat:['KeyQ','Comma'],act:['KeyE','Period','KeyF']}
+];
+const SOLO=4;
+/* комнаты, нарисованные вручную: прямоугольники [x,y,w,h] во внутренних координатах 13x13, двери в середине сторон (5..7) */
+const TPL=[
+ [[5,5,3,3]],
+ [[2,2,2,2],[9,2,2,2],[2,9,2,2],[9,9,2,2]],
+ [[3,5,7,2]],
+ [[4,4,1,1],[8,4,1,1],[4,8,1,1],[8,8,1,1],[6,6,1,1]],
+ [[1,1,3,1],[1,1,1,3],[9,1,3,1],[11,1,1,3],[1,11,3,1],[1,9,1,3],[9,11,3,1],[11,9,1,3]],
+ [[3,3,7,1],[3,9,7,1]],
+ [[5,3,3,7]],
+ [[4,4,5,5]]
+];
+/* баланс */
+const B={walk:3.9,sprint:5.4,rush:5.6,drain:.15,regen:.2,exhRecover:.25,
+  mPatrol:2.6,mInv:3.4,mSearch:2.4,mChase:4.5,mCarry:3.2,mHuman:4.4,lunge:6.2,lungeT:1.2,lungeCD:7,sight:7,heroR:6.5,monR:7.5};
+
+/* ================= утилиты ================= */
+let rng=Math.random;
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const rnd=()=>rng(), ri=n=>Math.floor(rnd()*n);
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const r2=v=>Math.round(v*100)/100;
+let grid=new Uint8Array(W*H), pass=new Uint8Array(W*H);
+let G=null;
+const solidAt=(x,y)=>x<0||y<0||x>=W||y>=H||grid[y*W+x]!==0;
+const $=id=>document.getElementById(id);
+
+/* ================= генерация карты ================= */
+function buildMap(n,seed){
+  rng=mulberry32(seed);
+  grid.fill(1); pass.fill(0);
+  const E=[],S=[]; for(let i=0;i<GW*GH;i++){E.push(false);S.push(false)}
+  const vis=new Uint8Array(GW*GH), st=[[3,3]]; vis[3*GW+3]=1;
+  while(st.length){
+    const [x,y]=st[st.length-1];
+    const nb=[[1,0],[-1,0],[0,1],[0,-1]].map(d=>[x+d[0],y+d[1],d]).filter(a=>a[0]>=0&&a[1]>=0&&a[0]<GW&&a[1]<GH&&!vis[a[1]*GW+a[0]]);
+    if(!nb.length){st.pop();continue}
+    const [nx,ny,d]=nb[ri(nb.length)]; vis[ny*GW+nx]=1;
+    if(d[0]===1)E[y*GW+x]=true; else if(d[0]===-1)E[ny*GW+nx]=true; else if(d[1]===1)S[y*GW+x]=true; else S[ny*GW+nx]=true;
+    st.push([nx,ny]);
+  }
+  for(let k=0;k<22;k++){const x=ri(GW),y=ri(GH); if(rnd()<.5){if(x<GW-1)E[y*GW+x]=true}else{if(y<GH-1)S[y*GW+x]=true}}
+  const jail=[3,3];
+  const corners=[[0,0],[GW-1,0],[0,GH-1],[GW-1,GH-1]].map(c=>[rnd(),c]).sort((a,b)=>a[0]-b[0]).map(a=>a[1]);
+  const exits=[[3,0],[6,3],[3,6],[0,3]]; const exitC=exits[ri(4)];
+  const key=c=>c[1]*GW+c[0];
+  const special=new Set([key(jail),key(exitC)]);
+  for(let cy=0;cy<GH;cy++)for(let cx=0;cx<GW;cx++){
+    const ox=cx*CW, oy=cy*CW;
+    for(let iy=1;iy<CW;iy++)for(let ix=1;ix<CW;ix++)grid[(oy+iy)*W+ox+ix]=0;
+    if(special.has(cy*GW+cx))continue;
+    const tp=TPL[ri(TPL.length)];
+    for(const r of tp)for(let yy=0;yy<r[3];yy++)for(let xx=0;xx<r[2];xx++)grid[(oy+1+r[1]+yy)*W+ox+1+r[0]+xx]=2;
+  }
+  for(let cy=0;cy<GH;cy++)for(let cx=0;cx<GW;cx++){
+    if(E[cy*GW+cx])for(let k=6;k<=8;k++)grid[(cy*CW+k)*W+(cx+1)*CW]=0;
+    if(S[cy*GW+cx])for(let k=6;k<=8;k++)grid[((cy+1)*CW)*W+cx*CW+k]=0;
+  }
+  for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){
+    let ok=1; for(let dy=-1;dy<=1&&ok;dy++)for(let dx=-1;dx<=1;dx++)if(grid[(y+dy)*W+x+dx]!==0){ok=0;break}
+    pass[y*W+x]=ok;
+  }
+  const anchor=[];
+  for(let cy=0;cy<GH;cy++)for(let cx=0;cx<GW;cx++){
+    const ox=cx*CW,oy=cy*CW; let best=null,bd=1e9;
+    for(let iy=1;iy<CW;iy++)for(let ix=1;ix<CW;ix++){
+      if(!pass[(oy+iy)*W+ox+ix])continue;
+      const d=(ix-7)**2+(iy-7)**2; if(d<bd){bd=d;best=[ox+ix,oy+iy]}
+    }
+    if(!best)return null; anchor.push(best);
+  }
+  const seen=new Uint8Array(W*H), q=[anchor[key(jail)]]; seen[q[0][1]*W+q[0][0]]=1;
+  for(let h=0;h<q.length;h++){const [x,y]=q[h]; for(const d of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+d[0],ny=y+d[1],i=ny*W+nx; if(pass[i]&&!seen[i]){seen[i]=1;q.push([nx,ny])}}}
+  for(const a of anchor)if(!seen[a[1]*W+a[0]])return null;
+
+  const pickTile=c=>{ for(let t=0;t<200;t++){const x=c[0]*CW+1+ri(13),y=c[1]*CW+1+ri(13); if(pass[y*W+x])return[x+.5,y+.5]} const a=anchor[key(c)]; return[a[0]+.5,a[1]+.5]};
+  const shuffle=a=>a.map(v=>[rnd(),v]).sort((x,y)=>x[0]-y[0]).map(v=>v[1]);
+  const cellsAll=[]; for(let y=0;y<GH;y++)for(let x=0;x<GW;x++)cellsAll.push([x,y]);
+  const corner=new Set(corners.map(key));
+  const keyCells=shuffle(cellsAll.filter(c=>!special.has(key(c))&&!corner.has(key(c)))).slice(0,3);
+  const keys=keyCells.map(c=>{const p=pickTile(c);return{x:p[0],y:p[1],taken:false}});
+  const bag=[]; const w={pumpkin:4,licorice:4,rush:3,mint:4,echo:3}; for(const k in w)for(let i=0;i<w[k];i++)bag.push(k);
+  const bag2=shuffle(bag);
+  const items=[];
+  corners.slice(0,Math.max(1,n)).forEach(c=>{const p=pickTile(c); items.push({type:bag2.pop(),x:p[0],y:p[1],taken:false})});
+  while(bag2.length){const c=cellsAll[ri(cellsAll.length)]; if(key(c)===key(jail))continue; const p=pickTile(c); items.push({type:bag2.pop(),x:p[0],y:p[1],taken:false})}
+  const ja=anchor[key(jail)], ea=anchor[key(exitC)];
+  return{seed,anchor,jail,exitC,corners,keys,items,
+    jailPos:[ja[0]+.5,ja[1]+.5], exitPos:[ea[0]+.5,ea[1]+.5], cellKey:key};
+}
+
+/* ================= поиск пути ================= */
+function nearestPass(x,y){
+  if(x>=0&&y>=0&&x<W&&y<H&&pass[y*W+x])return[x,y];
+  for(let r=1;r<=6;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+    if(Math.max(Math.abs(dx),Math.abs(dy))!==r)continue;
+    const nx=x+dx,ny=y+dy; if(nx>=0&&ny>=0&&nx<W&&ny<H&&pass[ny*W+nx])return[nx,ny];
+  }
+  return null;
+}
+function bfs(sx,sy,gx,gy){
+  const par=new Int32Array(W*H).fill(-1), q=new Int32Array(W*H); let h=0,t=0;
+  const s=sy*W+sx,g=gy*W+gx; par[s]=s; q[t++]=s;
+  while(h<t){
+    const c=q[h++]; if(c===g)break; const x=c%W;
+    const nb=[c+1,c-1,c+W,c-W];
+    for(let k=0;k<4;k++){const nc=nb[k]; if(nc<0||nc>=W*H)continue; if(k===0&&x===W-1)continue; if(k===1&&x===0)continue; if(pass[nc]&&par[nc]<0){par[nc]=c;q[t++]=nc}}
+  }
+  if(par[g]<0)return null;
+  const out=[]; let c=g; while(c!==s){out.push(c);c=par[c]} out.push(s); return out.reverse();
+}
+function setPath(M,gx,gy){
+  const s=nearestPass(Math.floor(M.x),Math.floor(M.y)), g=nearestPass(Math.floor(gx),Math.floor(gy));
+  if(!s||!g){M.path=null;return false}
+  M.path=bfs(s[0],s[1],g[0],g[1]); M.pi=1; return !!M.path;
+}
+function follow(M,speed,dt){
+  if(!M.path)return true;
+  let step=speed*dt;
+  while(step>0&&M.pi<M.path.length){
+    const idx=M.path[M.pi], tx=idx%W+.5, ty=((idx/W)|0)+.5;
+    const dx=tx-M.x, dy=ty-M.y, d=Math.hypot(dx,dy);
+    if(d<=step){M.x=tx;M.y=ty;step-=d;M.pi++}
+    else{M.x+=dx/d*step;M.y+=dy/d*step;step=0}
+  }
+  return M.pi>=M.path.length;
+}
+
+/* ================= физика ================= */
+function collides(x,y,r){
+  const x0=Math.floor(x-r),x1=Math.floor(x+r),y0=Math.floor(y-r),y1=Math.floor(y+r);
+  for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++){
+    if(!solidAt(tx,ty))continue;
+    const cx=clamp(x,tx,tx+1),cy=clamp(y,ty,ty+1);
+    if((x-cx)**2+(y-cy)**2<r*r)return true;
+  }
+  return false;
+}
+function moveCircle(e,dx,dy,r){
+  if(!collides(e.x+dx,e.y,r))e.x+=dx;
+  if(!collides(e.x,e.y+dy,r))e.y+=dy;
+}
+function los(ax,ay,bx,by){
+  const d=Math.hypot(bx-ax,by-ay), n=Math.ceil(d/.25);
+  for(let i=1;i<n;i++){const t=i/n; if(solidAt(Math.floor(ax+(bx-ax)*t),Math.floor(ay+(by-ay)*t)))return false}
+  return true;
+}
+
+/* ================= ввод ================= */
+const keysDown=new Set(), eatCnt=[0,0,0,0,0];
+const anyDown=a=>a.some(k=>keysDown.has(k));
+function readScheme(id){
+  const s=CTRL[id];
+  return{dx:(anyDown(s.right)?1:0)-(anyDown(s.left)?1:0),dy:(anyDown(s.down)?1:0)-(anyDown(s.up)?1:0),
+    sprint:anyDown(s.sprint),act:anyDown(s.act),e:eatCnt[id]};
+}
+const ZERO={dx:0,dy:0,sprint:false,act:false,e:0};
+const MODE={kind:'local',room:null,myPeer:null,hostPeer:null,heroPeers:[],monPeer:null,myIdx:0,spectator:false};
+function inputOf(i){
+  if(MODE.kind==='local'){
+    const sch=G.schemes[i==='m'?'m':i]; return sch==null?ZERO:readScheme(sch);
+  }
+  // хост: свой игрок с клавиатуры, чужие из presence
+  if(i===MODE.myIdx&&!MODE.spectator)return readScheme(SOLO);
+  const peerId=i==='m'?MODE.monPeer:MODE.heroPeers[i];
+  if(!peerId)return ZERO;
+  const pr=MODE.room.peers().find(q=>q.peer===peerId);
+  const v=pr&&pr.presence&&pr.presence.in;
+  return v?{dx:clamp(v.x|0,-1,1),dy:clamp(v.y|0,-1,1),sprint:!!v.s,act:!!v.a,e:v.e|0}:ZERO;
+}
+
+/* ================= игра ================= */
+function newGame(o){
+  let map=null,seed=o.seed;
+  if(seed!=null)map=buildMap(o.n,seed);
+  else while(!(map=buildMap(o.n,seed=(Math.random()*1e9)|0))){}
+  if(!map)return false;
+  const players=[];
+  for(let i=0;i<o.n;i++){
+    const a=map.anchor[map.cellKey(map.corners[i])];
+    players.push({i,x:a[0]+.5,y:a[1]+.5+(i%2?.3:-.3),face:0,state:'free',inv:[],fx:{night:0,quiet:0,rush:0,tired:0,mint:0},
+      stamina:1,exhausted:false,hold:null,holdT:0,noiseR:0,invuln:0,eatSeen:null,pt:0,tx:null,ty:null});
+  }
+  const schemes={};
+  if(o.kind==='local'){
+    const solo=o.n===1&&!o.hm;
+    for(let i=0;i<o.n;i++)schemes[i]=solo?SOLO:i;
+    if(o.hm)schemes.m=o.n;
+  }
+  G={n:o.n,hm:!!o.hm,map,players,time:0,over:0,keys:0,rings:[],pulses:[],newRings:[],newPulses:[],noises:[],schemes,shown:false,
+     m:{x:map.jailPos[0]+.5,y:map.jailPos[1]-2,state:'wait',t:0,path:null,pi:0,stun:0,carry:null,lastSeen:null,lostT:0,chaseT:0,chaseCool:0,heardCD:0,rp:0,sT:0,sw:0,face:0,lunge:0,lungeCD:0,human:!!o.hm,tx:null,ty:null}};
+  window.__g=G;
+  return true;
+}
+const visR=p=>{let r=B.heroR; if(p.fx.night>0)r=9.5; if(p.fx.mint>0)r*=.8; return r};
+
+function eat(p){
+  if(p.state!=='free'||!p.inv.length)return;
+  const it=p.inv.shift();
+  switch(it.type){
+    case'pumpkin':p.fx.night=25;break;
+    case'licorice':p.fx.quiet=15;break;
+    case'rush':p.fx.rush=6;p.fx.tired=0;break;
+    case'mint':p.fx.mint=25;break;
+    case'echo':{let d=0;const fx=Math.cos(p.face),fy=Math.sin(p.face);
+      while(d<10&&!solidAt(Math.floor(p.x+fx*(d+.5)),Math.floor(p.y+fy*(d+.5))))d+=.5;
+      const x=p.x+fx*d,y=p.y+fy*d; G.noises.push({x,y,r:14}); G.rings.push({x,y,t:0}); G.newRings.push([r2(x),r2(y)]);
+      G.pulses.push({x,y,r:14,t:0}); G.newPulses.push([r2(x),r2(y),14]);break}
+  }
+}
+
+function updatePlayer(p,dt,inp){
+  if(p.eatSeen==null)p.eatSeen=inp.e;
+  if(p.state!=='free'){p.noiseR=0;p.hold=null;p.holdT=0;p.eatSeen=inp.e;return}
+  if(inp.e!==p.eatSeen){p.eatSeen=inp.e;eat(p)}
+  for(const f in p.fx)if(p.fx[f]>0){p.fx[f]-=dt; if(f==='rush'&&p.fx.rush<=0)p.fx.tired=4}
+  p.invuln=Math.max(0,p.invuln-dt);
+  let dx=inp.dx,dy=inp.dy;
+  const mv=!!(dx||dy); if(mv){const l=Math.hypot(dx,dy);dx/=l;dy/=l;p.face=Math.atan2(dy,dx)}
+  const rush=p.fx.rush>0;
+  if(p.exhausted&&p.stamina>B.exhRecover)p.exhausted=false;
+  const sprint=mv&&(rush||(inp.sprint&&!p.exhausted&&p.stamina>0));
+  if(sprint&&!rush){p.stamina-=dt*B.drain;if(p.stamina<=0){p.stamina=0;p.exhausted=true}}
+  else p.stamina=Math.min(1,p.stamina+dt*B.regen);
+  let sp=B.walk; if(sprint)sp=B.sprint; if(rush)sp=B.rush; if(p.fx.quiet>0)sp*=.8; if(p.fx.tired>0)sp*=.7;
+  if(mv)moveCircle(p,dx*sp*dt,dy*sp*dt,.35);
+  let nr=mv?(sprint?8:2.8):0; if(p.fx.quiet>0)nr=0;
+  let acting=false;
+  if(inp.act){
+    const cj=G.map.jailPos;
+    const jailed=G.players.filter(q=>q.state==='jailed');
+    if(jailed.length&&Math.hypot(p.x-cj[0],p.y-cj[1])<=3.2){
+      acting=true; p.hold='rescue'; p.holdT+=dt; nr=Math.max(nr,4);
+      if(p.holdT>=3){const q=jailed[0];q.state='free';q.invuln=4;q.x=cj[0];q.y=cj[1]+3.4;p.hold=null;p.holdT=0}
+    }else{
+      const mate=G.players.find(q=>q!==p&&q.state==='free'&&q.inv.length<2&&Math.hypot(q.x-p.x,q.y-p.y)<=2.5);
+      const give=p.inv.filter(it=>it.lock<=G.time);
+      if(mate&&give.length){
+        acting=true; p.hold='give'; p.holdT+=dt; nr=Math.max(nr,5);
+        if(p.holdT>=.8){const it=give[give.length-1];p.inv.splice(p.inv.indexOf(it),1);it.lock=G.time+10;mate.inv.push(it);p.hold=null;p.holdT=0}
+      }
+    }
+  }
+  if(!acting){p.hold=null;p.holdT=0}
+  p.noiseR=nr;
+  // рябь для монстра
+  p.pt+=dt; if(nr>0&&p.pt>.4){p.pt=0;const x=p.x+(Math.random()-.5)*2,y=p.y+(Math.random()-.5)*2;G.pulses.push({x,y,r:nr,t:0});G.newPulses.push([r2(x),r2(y),nr])}
+  for(const it of G.map.items)if(!it.taken&&p.inv.length<2&&Math.hypot(it.x-p.x,it.y-p.y)<.8){it.taken=true;p.inv.push({type:it.type,lock:0})}
+  for(const kk of G.map.keys)if(!kk.taken&&Math.hypot(kk.x-p.x,kk.y-p.y)<.8){kk.taken=true;G.keys++}
+}
+
+function pickWander(M,r){
+  for(let t=0;t<12;t++){const a=Math.random()*6.283,d=2+Math.random()*r;const g=nearestPass(Math.floor(M.x+Math.cos(a)*d),Math.floor(M.y+Math.sin(a)*d)); if(g){setPath(M,g[0],g[1]);return}}
+}
+function tryCapture(){
+  const M=G.m;
+  if(M.state==='carry'||M.stun>0||M.state==='wait')return;
+  for(const p of G.players){
+    if(p.state==='free'&&p.invuln<=0&&Math.hypot(p.x-M.x,p.y-M.y)<1.05){
+      p.state='carried';p.hold=null;M.carry=p;M.state='carry';M.lunge=0;setPath(M,Math.floor(G.map.jailPos[0]),Math.floor(G.map.jailPos[1]));break;
+    }
+  }
+}
+function carryStep(dt){
+  const M=G.m;
+  if(follow(M,B.mCarry,dt)){
+    const p=M.carry; p.state='jailed';
+    const slot=[[-1,-1],[1,-1],[-1,1],[1,1]][p.i];
+    p.x=G.map.jailPos[0]+slot[0]*.9;p.y=G.map.jailPos[1]+slot[1]*.9;
+    M.carry=null;M.stun=1.2;M.path=null;
+    if(M.human)M.state='hum'; else{M.state='search';M.sT=4;M.sw=0}
+  }
+  if(M.carry){M.carry.x=M.x;M.carry.y=M.y}
+}
+function updateMonster(dt,inp){
+  const M=G.m; M.t+=dt; M.heardCD-=dt; M.chaseCool-=dt; M.lungeCD=Math.max(0,M.lungeCD-dt);
+  const dx0=M.x,dy0=M.y;
+  if(M.state==='wait'){if(M.t>(M.human?6:8)){M.state=M.human?'hum':'patrol';M.path=null}return}
+  if(M.state==='carry'){carryStep(dt);if(Math.hypot(M.x-dx0,M.y-dy0)>.001)M.face=Math.atan2(M.y-dy0,M.x-dx0);return}
+  if(M.stun>0){M.stun-=dt;return}
+  if(M.human){
+    let dx=inp.dx,dy=inp.dy; const mv=!!(dx||dy);
+    if(mv){const l=Math.hypot(dx,dy);dx/=l;dy/=l;M.face=Math.atan2(dy,dx)}
+    if(inp.sprint&&mv&&M.lungeCD<=0&&M.lunge<=0){M.lunge=B.lungeT;M.lungeCD=B.lungeCD}
+    let sp=B.mHuman; if(M.lunge>0){sp=B.lunge;M.lunge-=dt}
+    if(mv)moveCircle(M,dx*sp*dt,dy*sp*dt,.72);
+    tryCapture();return;
+  }
+  // ИИ-монстр
+  const free=G.players.filter(p=>p.state==='free');
+  let seen=null,sd=1e9;
+  for(const p of free){
+    const d=Math.hypot(p.x-M.x,p.y-M.y);
+    if(d<B.sight+(p.fx.night>0?2:0)&&los(M.x,M.y,p.x,p.y)&&d<sd){sd=d;seen=p}
+  }
+  let heard=null;
+  if(M.state!=='chase'&&M.heardCD<=0){
+    for(const p of free){const d=Math.hypot(p.x-M.x,p.y-M.y); if(p.noiseR>0&&d<p.noiseR*(los(M.x,M.y,p.x,p.y)?1:.7)){heard=[p.x+(Math.random()-.5)*3,p.y+(Math.random()-.5)*3];break}}
+    if(!heard)for(const n of G.noises){if(Math.hypot(n.x-M.x,n.y-M.y)<n.r){heard=[n.x,n.y];break}}
+  }
+  G.noises.length=0;
+  if(seen&&(M.chaseCool<=0||sd<2.5)){
+    if(M.state!=='chase'){M.state='chase';M.chaseT=0;M.rp=0}
+    M.lastSeen=[seen.x,seen.y]; M.lostT=0;
+  }else if(heard&&M.state!=='chase'){
+    M.state='investigate'; M.heardCD=1; setPath(M,Math.floor(heard[0]),Math.floor(heard[1]));
+  }
+  switch(M.state){
+    case'patrol':{
+      if(!M.path||M.pi>=M.path.length){
+        if(M.path&&M.pi>=M.path.length&&!M.looked){M.state='look';M.sT=1.5;M.path=null;M.looked=true;break}
+        M.looked=false;
+        const c=G.map.anchor[Math.floor(Math.random()*GW*GH)]; setPath(M,c[0],c[1]);
+      }
+      follow(M,B.mPatrol,dt);break}
+    case'look':M.sT-=dt;if(M.sT<=0){M.state='patrol';M.path=null}break;
+    case'investigate':if(follow(M,B.mInv,dt)){M.state='search';M.sT=6;M.sw=0;M.path=null}break;
+    case'search':
+      M.sT-=dt;M.sw-=dt;
+      if(M.sw<=0){pickWander(M,7);M.sw=1.8}
+      follow(M,B.mSearch,dt);
+      if(M.sT<=0){M.state='patrol';M.path=null}break;
+    case'chase':{
+      M.chaseT+=dt;
+      if(!seen)M.lostT+=dt;
+      if(M.lostT>3.5&&M.lastSeen){M.state='investigate';setPath(M,Math.floor(M.lastSeen[0]),Math.floor(M.lastSeen[1]));break}
+      if(M.chaseT>20){M.state='search';M.sT=5;M.sw=0;M.chaseCool=8;M.path=null;break}
+      M.rp-=dt; if(M.rp<=0&&M.lastSeen){setPath(M,Math.floor(M.lastSeen[0]),Math.floor(M.lastSeen[1]));M.rp=.2}
+      if(seen&&sd<3.2){
+        const dx=seen.x-M.x,dy=seen.y-M.y,d=Math.hypot(dx,dy)||1,st=Math.min(d,B.mChase*dt);
+        moveCircle(M,dx/d*st,dy/d*st,.7);M.path=null;M.rp=0;
+      }else follow(M,B.mChase,dt);
+      break}
+  }
+  if(Math.hypot(M.x-dx0,M.y-dy0)>.001)M.face=Math.atan2(M.y-dy0,M.x-dx0);
+  tryCapture();
+}
+
+function checkEnd(){
+  if(G.over)return;
+  const ps=G.players;
+  if(ps.every(p=>p.state!=='free')){G.over=2;return}
+  if(G.keys>=3){
+    const e=G.map.exitPos;
+    if(ps.every(p=>p.state==='free'&&Math.hypot(p.x-e[0],p.y-e[1])<3.3))G.over=1;
+  }
+}
+function step(dt){
+  G.time+=dt;
+  G.players.forEach((p,i)=>updatePlayer(p,dt,inputOf(i)));
+  updateMonster(dt,G.m.human?inputOf('m'):null);
+  for(const r of G.rings)r.t+=dt; G.rings=G.rings.filter(r=>r.t<1.5);
+  for(const r of G.pulses)r.t+=dt; G.pulses=G.pulses.filter(r=>r.t<1.2);
+  checkEnd();
+}
+function showEnd(win){
+  $('endT').textContent=win?'Вы выбрались':'Монстр забрал всех';
+  $('endP').textContent=win?'Вся команда у выхода. Дом остался позади.':'Все герои в плену. Монстр победил.';
+  setTimeout(()=>{$('end').hidden=false},900);
+}
+
+/* ================= сеть ================= */
+function packState(){
+  const M=G.m;
+  let it=0; G.map.items.forEach((x,i)=>{if(x.taken)it|=1<<i});
+  let ky=0; G.map.keys.forEach((x,i)=>{if(x.taken)ky|=1<<i});
+  const s={o:G.over,k:G.keys,it,ky,
+    p:G.players.map(p=>[r2(p.x),r2(p.y),r2(p.face),PS.indexOf(p.state),r2(p.stamina),p.exhausted?1:0,p.hold==='give'?1:p.hold==='rescue'?2:0,r2(p.holdT),
+      p.inv.map(c=>TY.indexOf(c.type)),[r2(p.fx.night),r2(p.fx.quiet),r2(p.fx.rush),r2(p.fx.tired),r2(p.fx.mint)],r2(p.invuln)]),
+    m:[r2(M.x),r2(M.y),r2(M.face),MS.indexOf(M.state),r2(M.lunge),r2(M.lungeCD),M.carry?M.carry.i:-1],
+    rg:G.newRings,pl:G.newPulses};
+  G.newRings=[];G.newPulses=[];
+  return s;
+}
+function applyState(s){
+  if(!G)return;
+  G.over=s.o;G.keys=s.k;
+  G.map.items.forEach((x,i)=>{x.taken=!!(s.it&(1<<i))});
+  G.map.keys.forEach((x,i)=>{x.taken=!!(s.ky&(1<<i))});
+  s.p.forEach((a,i)=>{
+    const p=G.players[i]; if(!p)return;
+    p.tx=a[0];p.ty=a[1];p.face=a[2];p.state=PS[a[3]]||'free';p.stamina=a[4];p.exhausted=!!a[5];
+    p.hold=a[6]===1?'give':a[6]===2?'rescue':null;p.holdT=a[7];
+    p.inv=a[8].map(c=>({type:TY[c]}));
+    p.fx={night:a[9][0],quiet:a[9][1],rush:a[9][2],tired:a[9][3],mint:a[9][4]};p.invuln=a[10];
+    if(p.x==null||Math.hypot(p.tx-p.x,p.ty-p.y)>4){p.x=p.tx;p.y=p.ty}
+  });
+  const m=s.m,M=G.m;
+  M.tx=m[0];M.ty=m[1];M.face=m[2];M.state=MS[m[3]]||'wait';M.lunge=m[4];M.lungeCD=m[5];M.carry=m[6]>=0?G.players[m[6]]:null;
+  if(M.x==null||Math.hypot(M.tx-M.x,M.ty-M.y)>4){M.x=M.tx;M.y=M.ty}
+  for(const r of s.rg)G.rings.push({x:r[0],y:r[1],t:0});
+  for(const r of s.pl)G.pulses.push({x:r[0],y:r[1],r:r[2],t:0});
+}
+function smooth(dt){
+  const k=1-Math.exp(-dt*18);
+  for(const e of G.players.concat([G.m])){
+    if(e.tx==null)continue;
+    e.x+=(e.tx-e.x)*k;e.y+=(e.ty-e.y)*k;
+  }
+  G.time+=dt;
+  for(const r of G.rings)r.t+=dt; G.rings=G.rings.filter(r=>r.t<1.5);
+  for(const r of G.pulses)r.t+=dt; G.pulses=G.pulses.filter(r=>r.t<1.2);
+}
+let NR=null,netPeerUnsub=null,netStartedSeed=null;
+function note(t){const n=$('netNote');n.hidden=!t;n.textContent=t||''}
+function myPeerId(){const me=NR.peers().find(p=>p.sameTab);return me?me.peer:null}
+function sortedPeers(){return NR.peers().filter(p=>p.kind==='viewer').slice().sort((a,b)=>a.peer<b.peer?-1:1)}
+function renderLobby(){
+  if(!NR)return;
+  const ps=sortedPeers(),box=$('peers');box.textContent='';
+  ps.forEach((p,i)=>{
+    const d=document.createElement('div');d.className='peer';
+    const b=document.createElement('b');b.textContent='Игрок '+(i+1)+(p.isMe&&p.sameTab?' (вы)':'');
+    const s=document.createElement('span');const role=p.presence&&p.presence.role==='monster'?'монстр':'герой';
+    s.textContent=role;s.className=role==='монстр'?'note':'good';
+    d.append(b,s);box.append(d);
+  });
+}
+async function joinRoom(){
+  const code=($('code').value||'').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,12);
+  if(!code){note('Введите код комнаты, например: dom7');return}
+  const R=window.claude&&window.claude.use?await window.claude.use('room'):null;
+  if(!R){note('Онлайн недоступен: войдите в аккаунт и откройте страницу с доступом «Участник» или выше.');return}
+  try{NR=await R.join(code)}catch(e){note('Не удалось войти в комнату: '+(e&&e.code||'ошибка'));return}
+  note('');$('lobby').hidden=false;$('lobbyCode').textContent=code;
+  NR.presence({role:'hero'});
+  NR.onPeers(renderLobby);
+  NR.on('start',onStartMsg);
+  NR.on('st',onStateMsg);
+  renderLobby();
+}
+function setRole(r){NR&&NR.presence({role:r});$('roleHero').classList.toggle('sel',r==='hero');$('roleMon').classList.toggle('sel',r==='monster')}
+function hostStart(){
+  if(!NR)return;
+  const ps=sortedPeers();
+  const heroes=ps.filter(p=>!(p.presence&&p.presence.role==='monster')).slice(0,4).map(p=>p.peer);
+  const monP=ps.find(p=>p.presence&&p.presence.role==='monster');
+  if(!heroes.length){note('Нужен хотя бы один герой.');return}
+  const hm=!!monP;
+  let seed;const tmp=(()=>{let m;while(!(m=buildMap(heroes.length,seed=(Math.random()*1e9)|0))){}return m})();
+  const payload={seed,heroes,mon:hm?monP.peer:null,host:myPeerId()};
+  beginNet(payload,true);
+  let n=0;const iv=setInterval(()=>{
+    NR.emit('start',payload).catch(e=>{if(e&&e.code==='not_permitted'){note('Нет прав отправлять события. Нужен доступ «Участник» или выше.');clearInterval(iv)}});
+    if(++n>6)clearInterval(iv);
+  },500);
+}
+function onStartMsg(m){
+  if(m.isMe||!m.data||typeof m.data.seed!=='number')return;
+  if(netStartedSeed===m.data.seed)return;
+  if(MODE.kind==='host')return;
+  beginNet(m.data,false);
+}
+function beginNet(d,isHost){
+  netStartedSeed=d.seed;
+  const me=myPeerId();
+  MODE.kind=isHost?'host':'client';MODE.room=NR;MODE.myPeer=me;MODE.hostPeer=d.host;MODE.heroPeers=d.heroes;MODE.monPeer=d.mon;
+  const hi=d.heroes.indexOf(me);
+  MODE.spectator=false;
+  if(d.mon===me)MODE.myIdx='m';else if(hi>=0)MODE.myIdx=hi;else{MODE.myIdx=0;MODE.spectator=true}
+  newGame({n:d.heroes.length,seed:d.seed,hm:!!d.mon,kind:MODE.kind});
+  G.lastSend=0;G.lastKey='';G.lastSeenState=performance.now();
+  $('menu').hidden=true;$('end').hidden=true;
+  startLoop();
+}
+
+let sendT=0,lastKey='';
+function onStateMsg(m){
+  if(m.isMe||MODE.kind!=='client'||m.peer!==MODE.hostPeer||!m.data)return;
+  G.lastSeenState=performance.now();
+  applyState(m.data);
+}
+
+/* ================= отрисовка ================= */
+const cv=$('c'), ctx=cv.getContext('2d');
+let DPR=1,VW=0,VH=0;
+function resize(){DPR=Math.min(2,window.devicePixelRatio||1);VW=innerWidth;VH=innerHeight;cv.width=VW*DPR;cv.height=VH*DPR}
+addEventListener('resize',resize);resize();
+
+function panelsFor(n){
+  const w=VW,h=VH;
+  if(n===1)return[[0,0,w,h]];
+  if(n===2)return[[0,0,w/2,h],[w/2,0,w/2,h]];
+  if(n===3)return[[0,0,w/2,h/2],[w/2,0,w/2,h/2],[0,h/2,w,h/2]];
+  return[[0,0,w/2,h/2],[w/2,0,w/2,h/2],[0,h/2,w/2,h/2],[w/2,h/2,w/2,h/2]];
+}
+function visPoly(e,R){
+  const pts=[],N=260;
+  for(let i=0;i<N;i++){
+    const a=i/N*6.2832,dx=Math.cos(a),dy=Math.sin(a);let d=0;
+    while(d<R){d+=.1;if(solidAt(Math.floor(e.x+dx*d),Math.floor(e.y+dy*d))){d=Math.min(R,d+.55);break}}
+    pts.push([(e.x+dx*d)*T,(e.y+dy*d)*T]);
+  }
+  return pts;
+}
+function floorColor(x,y){
+  const cx=Math.min(GW-1,(x/CW)|0),cy=Math.min(GH-1,(y/CW)|0);
+  const chk=(x+y)&1;
+  if(cx===G.map.jail[0]&&cy===G.map.jail[1])return chk?'#3a1f2c':'#34192a';
+  if(cx===G.map.exitC[0]&&cy===G.map.exitC[1])return chk?'#1f3a2c':'#1a3326';
+  return chk?'#2d2438':'#322840';
+}
+function drawWorld(e,R,fam){
+  const x0=Math.floor(e.x-R-1),x1=Math.ceil(e.x+R+1),y0=Math.floor(e.y-R-1),y1=Math.ceil(e.y+R+1);
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+    if(x<0||y<0||x>=W||y>=H)continue;
+    const v=grid[y*W+x], px=x*T, py=y*T;
+    if(v===0){ctx.fillStyle=floorColor(x,y);ctx.fillRect(px,py,T,T)}
+    else if(v===1){
+      ctx.fillStyle='#6a56a0';ctx.fillRect(px,py,T,T);
+      ctx.fillStyle='#d2c0ff';
+      if(!solidAt(x,y-1))ctx.fillRect(px,py,T,3);
+      if(!solidAt(x,y+1))ctx.fillRect(px,py+T-3,T,3);
+      if(!solidAt(x-1,y))ctx.fillRect(px,py,3,T);
+      if(!solidAt(x+1,y))ctx.fillRect(px+T-3,py,3,T);
+    }else{
+      ctx.fillStyle='#5b3a22';ctx.fillRect(px,py,T,T);
+      ctx.fillStyle='#8c5b34';ctx.fillRect(px+2,py+2,T-4,T-4);
+      ctx.strokeStyle='#3a2414';ctx.lineWidth=1;ctx.strokeRect(px+.5,py+.5,T-1,T-1);
+    }
+  }
+  const ex=G.map.exitPos, open=G.keys>=3;
+  ctx.save();ctx.translate(ex[0]*T,ex[1]*T);
+  ctx.strokeStyle=open?'#7dffb0':'#6b6b7a';ctx.lineWidth=4;
+  ctx.beginPath();ctx.arc(0,0,T*1.6,0,6.283);ctx.stroke();
+  ctx.fillStyle=open?'rgba(125,255,176,.25)':'rgba(120,120,140,.15)';ctx.fill();
+  ctx.fillStyle=open?'#c9ffe0':'#9a9ab0';ctx.font='bold 13px '+fam;ctx.textAlign='center';
+  ctx.fillText(open?'ВЫХОД':'ВЫХОД '+G.keys+'/3',0,4);
+  ctx.restore();
+  const j=G.map.jailPos; ctx.strokeStyle='#d46a8a';ctx.lineWidth=3;
+  ctx.strokeRect((j[0]-2)*T,(j[1]-2)*T,4*T,4*T);
+  ctx.lineWidth=2;for(let i=-1;i<=1;i++){ctx.beginPath();ctx.moveTo((j[0]+i)*T,(j[1]-2)*T);ctx.lineTo((j[0]+i)*T,(j[1]+2)*T);ctx.stroke()}
+  const tt=G.time;
+  for(const it of G.map.items){
+    if(it.taken)continue;
+    const c=CANDY[it.type]; ctx.fillStyle=c.color;ctx.strokeStyle='#fff';ctx.lineWidth=2;
+    const r=7+Math.sin(tt*4+it.x)*1.2;
+    ctx.beginPath();ctx.arc(it.x*T,it.y*T,r,0,6.283);ctx.fill();ctx.stroke();
+  }
+  for(const k of G.map.keys){
+    if(k.taken)continue;
+    ctx.fillStyle='#ffd23f';ctx.strokeStyle='#5a4300';ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(k.x*T-6,k.y*T,6,0,6.283);ctx.fill();ctx.stroke();
+    ctx.fillRect(k.x*T-1,k.y*T-2,13,4);ctx.fillRect(k.x*T+7,k.y*T,3,6);
+  }
+  for(const r of G.rings){ctx.strokeStyle='rgba(194,123,255,'+(1-r.t/1.5)+')';ctx.lineWidth=3;ctx.beginPath();ctx.arc(r.x*T,r.y*T,r.t*14*T/1.5*.6,0,6.283);ctx.stroke()}
+  for(const q of G.players){
+    ctx.globalAlpha=q.state==='jailed'?.55:1;
+    ctx.fillStyle=COLORS[q.i];ctx.strokeStyle='#000';ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(q.x*T,q.y*T,.4*T,0,6.283);ctx.fill();ctx.stroke();
+    ctx.beginPath();ctx.moveTo(q.x*T,q.y*T);ctx.lineTo(q.x*T+Math.cos(q.face)*.4*T,q.y*T+Math.sin(q.face)*.4*T);ctx.stroke();
+    ctx.globalAlpha=1;
+    if(q.hold){ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(q.x*T,q.y*T,.65*T,-1.57,-1.57+6.283*(q.holdT/(q.hold==='rescue'?3:.8)));ctx.stroke()}
+    if(q.invuln>0){ctx.strokeStyle='#ffffff88';ctx.lineWidth=1;ctx.beginPath();ctx.arc(q.x*T,q.y*T,.6*T,0,6.283);ctx.stroke()}
+  }
+  const M=G.m, mx=M.x*T,my=M.y*T;
+  const g=ctx.createRadialGradient(mx,my,4,mx,my,T*1.5);g.addColorStop(0,'rgba(255,40,20,.35)');g.addColorStop(1,'rgba(255,40,20,0)');
+  ctx.fillStyle=g;ctx.fillRect(mx-T*2,my-T*2,T*4,T*4);
+  ctx.fillStyle='#120816';ctx.strokeStyle=M.lunge>0?'#ffd23f':'#ff4a2a';ctx.lineWidth=2;
+  ctx.beginPath();for(let i=0;i<10;i++){const a=i/10*6.283,r=(i%2?.8:1.05)*T*.8;ctx.lineTo(mx+Math.cos(a)*r,my+Math.sin(a)*r)}ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.fillStyle='#ff3b1f';const ex2=Math.cos(M.face)*5,ey2=Math.sin(M.face)*5;
+  ctx.beginPath();ctx.arc(mx+ex2-6,my+ey2-3,3.2,0,6.283);ctx.arc(mx+ex2+6,my+ey2-3,3.2,0,6.283);ctx.fill();
+}
+
+/* view: число (герой) или 'm' (монстр) */
+function renderPanel(view,px,py,pw,ph){
+  const isM=view==='m', p=isM?null:G.players[view], e=isM?G.m:p, fam=getComputedStyle(document.body).fontFamily;
+  if(!e)return;
+  ctx.save();ctx.beginPath();ctx.rect(px,py,pw,ph);ctx.clip();
+  ctx.fillStyle='#030206';ctx.fillRect(px,py,pw,ph);
+  const R=isM?B.monR:visR(p), cx=px+pw/2, cy=py+ph/2;
+  ctx.save();
+  ctx.translate(cx-e.x*T,cy-e.y*T);
+  ctx.save();
+  const pts=visPoly(e,R);
+  ctx.beginPath();pts.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.closePath();ctx.clip();
+  drawWorld(e,R,fam);
+  const gr=ctx.createRadialGradient(e.x*T,e.y*T,R*T*.3,e.x*T,e.y*T,(R+.6)*T);
+  gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,0,.55)');
+  ctx.fillStyle=gr;ctx.fillRect(e.x*T-R*T-40,e.y*T-R*T-40,R*T*2+80,R*T*2+80);
+  ctx.restore();
+  // рябь шума видна монстру даже сквозь стены
+  if(isM)for(const pu of G.pulses){
+    if(Math.hypot(pu.x-e.x,pu.y-e.y)>20)continue;
+    const a=1-pu.t/1.2, big=pu.r>=8;
+    ctx.strokeStyle=big?'rgba(255,210,63,'+a+')':'rgba(220,220,255,'+a*.8+')';ctx.lineWidth=big?4:2.5;
+    ctx.beginPath();ctx.arc(pu.x*T,pu.y*T,(.3+pu.t/1.2*(big?2.2:1.2))*T,0,6.283);ctx.stroke();
+  }
+  ctx.restore();
+  // HUD
+  ctx.translate(px,py);
+  const M=G.m;
+  if(!isM){
+    const d=Math.hypot(M.x-p.x,M.y-p.y);
+    if(p.state==='free'&&M.state!=='wait'&&d<11){
+      const a=(1-d/11)*(.3+.2*Math.sin(G.time*(4+(11-d))));
+      const rg=ctx.createRadialGradient(pw/2,ph/2,Math.min(pw,ph)*.25,pw/2,ph/2,Math.max(pw,ph)*.7);
+      rg.addColorStop(0,'rgba(170,0,0,0)');rg.addColorStop(1,'rgba(170,0,0,'+a+')');ctx.fillStyle=rg;ctx.fillRect(0,0,pw,ph);
+    }
+    if(p.fx.mint>0)for(const q of G.players){
+      if(q===p)continue; const a=Math.atan2(q.y-p.y,q.x-p.x), rad=Math.min(pw,ph)/2-34;
+      ctx.save();ctx.translate(pw/2+Math.cos(a)*rad,ph/2+Math.sin(a)*rad);ctx.rotate(a);
+      ctx.fillStyle=COLORS[q.i];ctx.strokeStyle='#000';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(12,0);ctx.lineTo(-8,-8);ctx.lineTo(-8,8);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+    }
+  }
+  ctx.textAlign='left';
+  ctx.fillStyle=isM?'#ff4a2a':COLORS[p.i];ctx.font='600 14px '+fam;ctx.fillText('● '+(isM?'Монстр':NAMES[p.i]),12,22);
+  ctx.textAlign='right';ctx.fillStyle='#f3eaff';ctx.fillText('Ключи '+G.keys+'/3',pw-12,22);
+  let hint='';
+  if(isM){
+    const cd=M.lungeCD;
+    ctx.fillStyle='#ffffff22';ctx.fillRect(12,ph-24,100,6);ctx.fillStyle=cd>0?'#c84':'#ffd23f';ctx.fillRect(12,ph-24,100*(1-cd/B.lungeCD),6);
+    ctx.textAlign='left';ctx.font='12px '+fam;ctx.fillStyle='#ffe9b0';ctx.fillText(M.lunge>0?'рывок!':cd>0?'рывок через '+Math.ceil(cd)+'с':'рывок готов (клавиша бега)',12,ph-32);
+    if(M.state==='wait')hint='Вы просыпаетесь. Герои расходятся...';
+    else if(M.state==='carry')hint='Вы несёте пленника в клетку';
+    else if(G.time<20)hint='Смотрите на рябь: так слышно шаги и бег. Касание уносит героя.';
+  }else{
+    ctx.fillStyle='#ffffff22';ctx.fillRect(12,ph-24,100,6);ctx.fillStyle=p.exhausted?'#c44':'#7dffb0';ctx.fillRect(12,ph-24,100*p.stamina,6);
+    for(let s=0;s<2;s++){
+      const x=pw/2-34+s*68,y=ph-34, it=p.inv[s];
+      ctx.strokeStyle=s===0?'#fff':'#ffffff66';ctx.lineWidth=2;ctx.fillStyle='#00000099';
+      ctx.beginPath();ctx.arc(x,y,16,0,6.283);ctx.fill();ctx.stroke();
+      if(it){ctx.fillStyle=CANDY[it.type].color;ctx.beginPath();ctx.arc(x,y,10,0,6.283);ctx.fill();
+        ctx.textAlign='center';ctx.fillStyle='#fff';ctx.font='11px '+fam;ctx.fillText(CANDY[it.type].name,x,y-22)}
+    }
+    ctx.textAlign='left';ctx.font='12px '+fam;let ey=ph-44;
+    const lab={night:'ночное зрение',quiet:'тишина',rush:'рывок',tired:'усталость',mint:'чутьё'};
+    for(const f in p.fx)if(p.fx[f]>0){ctx.fillStyle=f==='tired'?'#ff8a8a':'#ffe9b0';ctx.fillText(lab[f]+' '+Math.ceil(p.fx[f])+'с',12,ey);ey-=15}
+    const cj=G.map.jailPos;
+    if(p.state==='jailed')hint='Вы в плену. Друг должен подойти к клетке и держать действие';
+    else if(p.state==='carried')hint='Монстр несёт вас в клетку';
+    else if(G.players.some(q=>q.state==='jailed')&&Math.hypot(p.x-cj[0],p.y-cj[1])<=3.2)hint='Держите действие: освободить пленника';
+    else if(p.inv.length&&G.players.some(q=>q!==p&&q.state==='free'&&Math.hypot(q.x-p.x,q.y-p.y)<=2.5))hint='Держите действие: передать конфету';
+    else if(G.time<14)hint='Найдите друзей. Бег шумит. Монстр слышит и видит.';
+  }
+  if(hint){ctx.textAlign='center';ctx.fillStyle='#ffffffcc';ctx.font='13px '+fam;ctx.fillText(hint,pw/2,ph-62)}
+  if(!isM&&p.state!=='free'){ctx.fillStyle='rgba(60,0,20,.25)';ctx.fillRect(0,0,pw,ph)}
+  ctx.restore();
+}
+
+/* ================= цикл ================= */
+let last=0,running=false;
+function startLoop(){if(!running){running=true;last=performance.now();requestAnimationFrame(frame)}}
+function frame(ts){
+  if(!running)return;
+  const dt=Math.min(.05,(ts-last)/1000||0);last=ts;
+  if(G){
+    if(MODE.kind==='client'){
+      smooth(dt);
+      if(!MODE.spectator){
+        const inp=readScheme(SOLO),k=[inp.dx,inp.dy,+inp.sprint,+inp.act,inp.e].join();
+        if(k!==lastKey){lastKey=k;NR.presence({in:{x:inp.dx,y:inp.dy,s:+inp.sprint,a:+inp.act,e:inp.e}}).catch(()=>{})}
+      }
+      if(performance.now()-G.lastSeenState>6000&&!G.over){G.over=-1}
+    }else{
+      if(!G.over)step(dt); else {G.time+=dt}
+      if(MODE.kind==='host'){
+        sendT+=dt;
+        if(sendT>=.066){sendT=0;NR.emit('st',packState()).catch(e=>{if(e&&e.code==='not_permitted'&&!G.warned){G.warned=1;console.warn('emit not permitted')}})}
+      }
+    }
+    if(G.over&&!G.shown){
+      G.shown=true;
+      if(G.over===-1){$('endT').textContent='Хост вышел';$('endP').textContent='Связь с хостом потеряна. Вернитесь в меню и начните заново.';setTimeout(()=>{$('end').hidden=false},300)}
+      else showEnd(G.over===1);
+    }
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    ctx.fillStyle='#030206';ctx.fillRect(0,0,VW,VH);
+    let views;
+    if(MODE.kind==='local'){views=G.players.map((_,i)=>i);if(G.hm)views.push('m')}
+    else views=[MODE.myIdx];
+    const pn=panelsFor(views.length);
+    views.forEach((v,i)=>renderPanel(v,...pn[i]));
+    ctx.strokeStyle='#3a2a52';ctx.lineWidth=2;
+    pn.forEach(r=>ctx.strokeRect(r[0],r[1],r[2],r[3]));
+  }
+  requestAnimationFrame(frame);
+}
+{
+  addEventListener('keydown',e=>{
+    if(G&&$('menu').hidden&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();
+    if(!keysDown.has(e.code))CTRL.forEach(s=>{if(s.eat.includes(e.code))eatCnt[s.id]++});
+    keysDown.add(e.code);
+  });
+  addEventListener('keyup',e=>keysDown.delete(e.code));
+  addEventListener('blur',()=>keysDown.clear());
+}
+
+/* ================= меню ================= */
+let nSel=3;
+document.querySelectorAll('#pl button').forEach(b=>b.onclick=()=>{nSel=+b.dataset.n;document.querySelectorAll('#pl button').forEach(x=>x.classList.toggle('sel',x===b))});
+$('tabLocal').onclick=()=>{$('paneLocal').hidden=false;$('paneOnline').hidden=true;$('tabLocal').classList.add('sel');$('tabOnline').classList.remove('sel')};
+$('tabOnline').onclick=()=>{$('paneLocal').hidden=true;$('paneOnline').hidden=false;$('tabOnline').classList.add('sel');$('tabLocal').classList.remove('sel')};
+$('start').onclick=()=>{
+  const hm=$('hm').checked; let total=nSel; if(hm&&total<2)total=2;
+  const heroes=hm?total-1:total;
+  MODE.kind='local';MODE.myIdx=0;
+  newGame({n:heroes,hm,kind:'local'});
+  $('menu').hidden=true;$('end').hidden=true;startLoop();
+};
+$('join').onclick=joinRoom;
+$('roleHero').onclick=()=>setRole('hero');
+$('roleMon').onclick=()=>setRole('monster');
+$('netStart').onclick=hostStart;
+$('again').onclick=()=>{
+  $('end').hidden=true;$('menu').hidden=false;
+  if(MODE.kind!=='local'){NR&&(netStartedSeed=null);MODE.kind='local'}
+  G=null;
+};
+</script>
+
+</body></html>
